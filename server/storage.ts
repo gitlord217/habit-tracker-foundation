@@ -112,9 +112,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteHabit(id: number, userId: number): Promise<boolean> {
+    // First, check if the habit exists and belongs to the user
+    const [habit] = await db.select().from(habits)
+      .where(and(eq(habits.id, id), eq(habits.userId, userId)));
+      
+    if (!habit) {
+      return false;
+    }
+    
+    // Delete associated habit completions first (cascading delete)
+    await db.delete(habitCompletions)
+      .where(eq(habitCompletions.habitId, id));
+      
+    // Then delete the habit itself
     const result = await db.delete(habits)
       .where(and(eq(habits.id, id), eq(habits.userId, userId)))
       .returning();
+      
     return result.length > 0;
   }
 

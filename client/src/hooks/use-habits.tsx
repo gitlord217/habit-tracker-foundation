@@ -92,7 +92,12 @@ export const HabitsProvider = ({ children }: { children: ReactNode }) => {
       await apiRequest('DELETE', `/api/habits/${id}`);
     },
     onSuccess: () => {
+      // Invalidate multiple queries to ensure UI is updated properly
       queryClient.invalidateQueries({ queryKey: ['/api/habits'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/completions/today'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/analytics/completion-rate'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/analytics/weekly-trend'] });
+      
       toast({
         title: 'Habit deleted',
         description: 'The habit was deleted successfully.',

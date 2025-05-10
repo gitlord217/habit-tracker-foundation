@@ -73,3 +73,59 @@ export function calculateStreakColor(streak: number): string {
     return "bg-red-500 dark:bg-red-600";
   }
 }
+
+// Get the timeframe from a habit description
+export function getHabitTimeframe(description: string): "daily" | "weekly" | "monthly" {
+  const lowerCaseDesc = description?.toLowerCase() || "";
+  if (lowerCaseDesc.includes("weekly")) return "weekly";
+  if (lowerCaseDesc.includes("monthly")) return "monthly";
+  return "daily"; // Default to daily if not specified
+}
+
+// Function to determine if a habit is available for completion
+export function isHabitAvailableForCompletion(habit: { startDate: string; description: string | null }, lastCompletionDate?: string): { available: boolean; nextDate?: Date; message?: string } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const habitStartDate = new Date(habit.startDate);
+  habitStartDate.setHours(0, 0, 0, 0);
+  
+  // If habit hasn't started yet
+  if (habitStartDate > today) {
+    return { 
+      available: false, 
+      message: `This habit starts on ${formatDate(habitStartDate)}` 
+    };
+  }
+  
+  // If no previous completion, it's available if the start date has been reached
+  if (!lastCompletionDate) {
+    return { available: true };
+  }
+  
+  const lastCompletion = new Date(lastCompletionDate);
+  lastCompletion.setHours(0, 0, 0, 0);
+  
+  const timeframe = getHabitTimeframe(habit.description || "");
+  let nextAvailableDate = new Date(lastCompletion);
+  
+  // Calculate next available date based on timeframe
+  if (timeframe === "daily") {
+    nextAvailableDate.setDate(nextAvailableDate.getDate() + 1);
+  } else if (timeframe === "weekly") {
+    nextAvailableDate.setDate(nextAvailableDate.getDate() + 7);
+  } else if (timeframe === "monthly") {
+    nextAvailableDate.setMonth(nextAvailableDate.getMonth() + 1);
+  }
+  
+  // Check if today is on or after the next available date
+  if (today >= nextAvailableDate) {
+    return { available: true };
+  } else {
+    return { 
+      available: false, 
+      nextDate: nextAvailableDate,
+      message: `Next completion available on ${formatDate(nextAvailableDate)}` 
+    };
+  }
+}

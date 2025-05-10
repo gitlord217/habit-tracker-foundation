@@ -69,6 +69,7 @@ export default function AuthPage({ onLoginSuccess }: AuthPageProps) {
       username: "",
       password: "",
     },
+    mode: "onChange",
   });
   
   // Initialize registration form
@@ -79,6 +80,7 @@ export default function AuthPage({ onLoginSuccess }: AuthPageProps) {
       email: "",
       password: "",
     },
+    mode: "onChange",
   });
   
   // Handle login form submission
@@ -211,7 +213,12 @@ export default function AuthPage({ onLoginSuccess }: AuthPageProps) {
                             </FormItem>
                           )}
                         />
-                        <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
+                        <Button 
+                          type="submit" 
+                          disabled={loginMutation.isPending || !loginForm.formState.isValid}
+                          variant={loginForm.formState.isValid ? "default" : "secondary"}
+                          className={!loginForm.formState.isValid ? "w-full opacity-60" : "w-full"}
+                        >
                           {loginMutation.isPending ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -221,10 +228,13 @@ export default function AuthPage({ onLoginSuccess }: AuthPageProps) {
                             "Sign in"
                           )}
                         </Button>
+                        {!loginForm.formState.isValid && loginForm.formState.isDirty && (
+                          <p className="text-xs text-destructive mt-1 font-medium">Please fill all required fields</p>
+                        )}
                       </form>
                     </Form>
                   </CardContent>
-                  <CardFooter className="flex flex-col">
+                  <CardFooter className="flex flex-col mt-4">
                     <div className="text-sm text-muted-foreground text-center mt-2">
                       Don't have an account?{" "}
                       <a
@@ -293,7 +303,12 @@ export default function AuthPage({ onLoginSuccess }: AuthPageProps) {
                             </FormItem>
                           )}
                         />
-                        <Button type="submit" className="w-full" disabled={registerMutation.isPending}>
+                        <Button 
+                          type="submit" 
+                          disabled={registerMutation.isPending || !registerForm.formState.isValid}
+                          variant={registerForm.formState.isValid ? "default" : "secondary"}
+                          className={!registerForm.formState.isValid ? "w-full opacity-60" : "w-full"}
+                        >
                           {registerMutation.isPending ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -303,10 +318,13 @@ export default function AuthPage({ onLoginSuccess }: AuthPageProps) {
                             "Create account"
                           )}
                         </Button>
+                        {!registerForm.formState.isValid && registerForm.formState.isDirty && (
+                          <p className="text-xs text-destructive mt-1 font-medium">Please fill all required fields</p>
+                        )}
                       </form>
                     </Form>
                   </CardContent>
-                  <CardFooter className="flex flex-col">
+                  <CardFooter className="flex flex-col mt-4">
                     <div className="text-sm text-muted-foreground text-center mt-2">
                       Already have an account?{" "}
                       <a

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { BarChart3, CheckCircle, Clock, Flame, Plus, Target } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { formatDate, isHabitAvailableForCompletion } from "@/lib/utils";
 import { getTodaysQuote } from "@/lib/quotes";
 
 interface DashboardPageProps {
@@ -161,21 +161,45 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
                       className={completion?.completed ? "bg-green-200" : ""}
                     />
                   </CardContent>
-                  <CardFooter className="pt-2">
-                    <Button 
-                      variant={completion?.completed ? "outline" : "default"}
-                      onClick={() => toggleCompletion(habit.id)}
-                      className="w-full"
-                    >
-                      {completion?.completed ? (
+                  <CardFooter className="pt-2 flex flex-col">
+                    {(() => {
+                      // Check if habit is available for completion based on timing rules
+                      const availabilityStatus = isHabitAvailableForCompletion(
+                        habit, 
+                        completion?.date
+                      );
+                      
+                      const isDisabled = completion?.completed || !availabilityStatus.available;
+                      
+                      return (
                         <>
-                          <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
-                          Completed
+                          <Button 
+                            variant={completion?.completed ? "outline" : isDisabled ? "secondary" : "default"}
+                            onClick={() => availabilityStatus.available && !completion?.completed && toggleCompletion(habit.id)}
+                            className="w-full"
+                            disabled={isDisabled}
+                          >
+                            {completion?.completed ? (
+                              <>
+                                <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
+                                Completed
+                              </>
+                            ) : availabilityStatus.available ? (
+                              "Mark as Complete"
+                            ) : (
+                              "Not Available"
+                            )}
+                          </Button>
+                          
+                          {/* Show message explaining why completion is not available */}
+                          {!completion?.completed && !availabilityStatus.available && availabilityStatus.message && (
+                            <p className="text-xs text-muted-foreground mt-2 text-center">
+                              {availabilityStatus.message}
+                            </p>
+                          )}
                         </>
-                      ) : (
-                        "Mark as Complete"
-                      )}
-                    </Button>
+                      );
+                    })()}
                   </CardFooter>
                 </Card>
               ))}

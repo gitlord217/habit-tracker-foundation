@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Separator } from "@/components/ui/separator";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2, Calendar as CalendarIcon, CheckCircle, Edit, Flame, Trash2, Plus } from "lucide-react";
-import { cn, daysOfWeek, everyDayValue, weekdaysValue, weekendsValue, getDayTargetLabel, formatDate } from "@/lib/utils";
+import { cn, daysOfWeek, everyDayValue, weekdaysValue, weekendsValue, getDayTargetLabel, formatDate, isHabitAvailableForCompletion } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +44,9 @@ export default function HabitsPage({ onNavigate }: HabitsPageProps) {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedHabit, setSelectedHabit] = useState<any>(null);
   
+  // Selected timeframe for habit creation
+  const [timeframe, setTimeframe] = useState<string>("daily");
+  
   // Form for creating new habits
   const createForm = useForm<HabitFormValues>({
     resolver: zodResolver(habitSchema),
@@ -53,19 +56,32 @@ export default function HabitsPage({ onNavigate }: HabitsPageProps) {
       targetDays: everyDayValue,
       startDate: new Date(),
     },
+    mode: "onChange",
   });
   
   // Form for editing habits
   const editForm = useForm<HabitFormValues>({
     resolver: zodResolver(habitSchema),
     // Default values will be set when a habit is selected for editing
+    mode: "onChange",
   });
   
   // Handle creating a new habit
   const onCreateSubmit = (data: HabitFormValues) => {
+    // Add timeframe information to the description
+    const timeframeText = timeframe === "daily" 
+      ? "Daily habit" 
+      : timeframe === "weekly" 
+        ? "Weekly habit" 
+        : "Monthly habit";
+    
+    const description = data.description 
+      ? `${data.description}\n\n${timeframeText}` 
+      : timeframeText;
+    
     createHabit({
       name: data.name,
-      description: data.description || "",
+      description: description,
       targetDays: data.targetDays,
       startDate: data.startDate.toISOString().split('T')[0],
     })
@@ -168,8 +184,8 @@ export default function HabitsPage({ onNavigate }: HabitsPageProps) {
                 Create New Habit
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
+            <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-hidden">
+              <DialogHeader className="py-2">
                 <DialogTitle>Create New Habit</DialogTitle>
                 <DialogDescription>
                   Create a new habit to track in your daily routine
@@ -177,7 +193,7 @@ export default function HabitsPage({ onNavigate }: HabitsPageProps) {
               </DialogHeader>
               
               <Form {...createForm}>
-                <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-4 py-4">
+                <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="space-y-3 pt-1 pb-2 max-h-[65vh] overflow-y-auto px-2">
                   <FormField
                     control={createForm.control}
                     name="name"
@@ -249,6 +265,40 @@ export default function HabitsPage({ onNavigate }: HabitsPageProps) {
                     )}
                   />
                   
+                  {/* Timeframe selection */}
+                  <div>
+                    <FormLabel>Timeframe</FormLabel>
+                    <FormDescription>
+                      How often do you want to perform this habit?
+                    </FormDescription>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <Button
+                        type="button"
+                        variant={timeframe === "daily" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setTimeframe("daily")}
+                      >
+                        Daily
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={timeframe === "weekly" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setTimeframe("weekly")}
+                      >
+                        Weekly
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={timeframe === "monthly" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setTimeframe("monthly")}
+                      >
+                        Monthly
+                      </Button>
+                    </div>
+                  </div>
+                  
                   <FormField
                     control={createForm.control}
                     name="targetDays"
@@ -286,24 +336,24 @@ export default function HabitsPage({ onNavigate }: HabitsPageProps) {
                         </div>
                         <FormControl>
                           <div className="flex flex-wrap gap-2">
-                            {daysOfWeek.map((day, index) => (
+                            {daysOfWeek.map((day) => (
                               <FormItem
-                                key={day}
+                                key={`day-${day.value}`}
                                 className="flex flex-row items-start space-x-1 space-y-0"
                               >
                                 <FormControl>
                                   <Checkbox
-                                    checked={field.value.includes(index)}
+                                    checked={field.value.includes(day.value)}
                                     onCheckedChange={(checked) => {
                                       const updatedValue = checked
-                                        ? [...field.value, index]
-                                        : field.value.filter((value) => value !== index);
+                                        ? [...field.value, day.value]
+                                        : field.value.filter((value) => value !== day.value);
                                       field.onChange(updatedValue);
                                     }}
                                   />
                                 </FormControl>
                                 <FormLabel className="font-normal">
-                                  {day}
+                                  {day.label}
                                 </FormLabel>
                               </FormItem>
                             ))}
@@ -314,11 +364,21 @@ export default function HabitsPage({ onNavigate }: HabitsPageProps) {
                     )}
                   />
                   
-                  <DialogFooter className="pt-4">
+                  <DialogFooter className="mt-2 sticky bottom-0 bg-background py-2 mb-6 relative">
                     <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                       Cancel
                     </Button>
-                    <Button type="submit">Create Habit</Button>
+                    <Button 
+                      type="submit" 
+                      disabled={!createForm.formState.isValid}
+                      variant={createForm.formState.isValid ? "default" : "secondary"}
+                      className={!createForm.formState.isValid ? "opacity-60" : ""}
+                    >
+                      Create Habit
+                    </Button>
+                    {!createForm.formState.isValid && createForm.formState.isDirty && (
+                      <p className="text-xs text-destructive mt-1 absolute -bottom-5 left-0 font-medium">Please fill all required fields</p>
+                    )}
                   </DialogFooter>
                 </form>
               </Form>
@@ -383,7 +443,7 @@ export default function HabitsPage({ onNavigate }: HabitsPageProps) {
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
                               <AlertDialogAction 
                                 onClick={() => handleDeleteHabit(habit.id)}
-                                className="bg-red-500 hover:bg-red-600 text-white"
+                                className="bg-red-500 hover:bg-red-600"
                               >
                                 Delete
                               </AlertDialogAction>
@@ -398,14 +458,13 @@ export default function HabitsPage({ onNavigate }: HabitsPageProps) {
             </div>
           ) : (
             <Card>
-              <CardContent className="p-8 text-center">
-                <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                  <CheckCircle className="h-6 w-6 text-primary" />
-                </div>
-                <h3 className="font-semibold text-lg mb-2">No habits yet</h3>
-                <p className="text-muted-foreground mb-4">
-                  You haven't created any habits yet. Create your first habit to start tracking your progress.
-                </p>
+              <CardHeader>
+                <CardTitle>No Habits Yet</CardTitle>
+                <CardDescription>
+                  You haven't created any habits yet. Create your first habit to start tracking.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex justify-center pb-6">
                 <Button onClick={() => setIsCreateDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Create your first habit
@@ -418,8 +477,8 @@ export default function HabitsPage({ onNavigate }: HabitsPageProps) {
       
       {/* Edit Habit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-hidden">
+          <DialogHeader className="py-2">
             <DialogTitle>Edit Habit</DialogTitle>
             <DialogDescription>
               Update your habit details
@@ -427,7 +486,7 @@ export default function HabitsPage({ onNavigate }: HabitsPageProps) {
           </DialogHeader>
           
           <Form {...editForm}>
-            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4 py-4">
+            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-3 pt-1 pb-2 max-h-[65vh] overflow-y-auto px-2">
               <FormField
                 control={editForm.control}
                 name="name"
@@ -536,24 +595,24 @@ export default function HabitsPage({ onNavigate }: HabitsPageProps) {
                     </div>
                     <FormControl>
                       <div className="flex flex-wrap gap-2">
-                        {daysOfWeek.map((day, index) => (
+                        {daysOfWeek.map((day) => (
                           <FormItem
-                            key={day}
+                            key={`edit-day-${day.value}`}
                             className="flex flex-row items-start space-x-1 space-y-0"
                           >
                             <FormControl>
                               <Checkbox
-                                checked={field.value.includes(index)}
+                                checked={field.value?.includes(day.value)}
                                 onCheckedChange={(checked) => {
                                   const updatedValue = checked
-                                    ? [...field.value, index]
-                                    : field.value.filter((value) => value !== index);
+                                    ? [...field.value, day.value]
+                                    : field.value.filter((value) => value !== day.value);
                                   field.onChange(updatedValue);
                                 }}
                               />
                             </FormControl>
                             <FormLabel className="font-normal">
-                              {day}
+                              {day.label}
                             </FormLabel>
                           </FormItem>
                         ))}
@@ -564,11 +623,21 @@ export default function HabitsPage({ onNavigate }: HabitsPageProps) {
                 )}
               />
               
-              <DialogFooter className="pt-4">
+              <DialogFooter className="mt-2 sticky bottom-0 bg-background py-2 mb-6 relative">
                 <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit">Save Changes</Button>
+                <Button 
+                  type="submit" 
+                  disabled={!editForm.formState.isValid}
+                  variant={editForm.formState.isValid ? "default" : "secondary"}
+                  className={!editForm.formState.isValid ? "opacity-60" : ""}
+                >
+                  Update Habit
+                </Button>
+                {!editForm.formState.isValid && editForm.formState.isDirty && (
+                  <p className="text-xs text-destructive mt-1 absolute -bottom-5 left-0 font-medium">Please fill all required fields</p>
+                )}
               </DialogFooter>
             </form>
           </Form>
