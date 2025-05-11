@@ -38,11 +38,21 @@ interface HabitDialogProps {
   mode: "create" | "edit";
 }
 
+// Simple function to check if a date is in the past
+const isPastDate = (date: Date) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return date < today;
+};
+
+// Original schema that was working before
 const habitFormSchema = z.object({
   name: z.string().min(1, "Habit name is required").max(100, "Habit name is too long"),
   description: z.string().max(255, "Description is too long").optional(),
   targetDays: z.array(z.number().min(0).max(6)).min(1, "Select at least one day"),
-  startDate: z.date(),
+  startDate: z.date({
+    required_error: "Start date is required",
+  }),
 });
 
 type HabitFormValues = z.infer<typeof habitFormSchema>;
@@ -56,22 +66,37 @@ export default function HabitDialog({ open, onOpenChange, habit, mode }: HabitDi
     'custom'
   );
   
+  // These functions are no longer needed as we're using inline functions
+
   const form = useForm<HabitFormValues>({
     resolver: zodResolver(habitFormSchema),
     defaultValues: {
       name: habit?.name || "",
       description: habit?.description || "",
       targetDays: habit?.targetDays as number[] || everyDayValue,
-      startDate: habit?.startDate ? new Date(habit.startDate) : new Date(),
+      // For edit mode, keep the existing date, for create mode, don't set any default
+      startDate: mode === "edit" && habit?.startDate ? new Date(habit.startDate) : undefined,
     },
+    mode: "onChange", // Validate as user interacts with form
   });
-  
+
   async function onSubmit(values: HabitFormValues) {
     try {
+      // Use the date from the form
       if (mode === "create") {
-        await createHabit(values);
+        await createHabit({
+          name: values.name,
+          description: values.description,
+          targetDays: values.targetDays,
+          startDate: format(values.startDate!, 'yyyy-MM-dd')
+        });
       } else if (mode === "edit" && habit) {
-        await updateHabit(habit.id, values);
+        await updateHabit(habit.id, {
+          name: values.name,
+          description: values.description,
+          targetDays: values.targetDays,
+          startDate: format(values.startDate!, 'yyyy-MM-dd')
+        });
       }
       onOpenChange(false);
     } catch (error) {
@@ -254,7 +279,7 @@ export default function HabitDialog({ open, onOpenChange, habit, mode }: HabitDi
                           {field.value ? (
                             format(field.value, "PPP")
                           ) : (
-                            <span>Pick a date</span>
+                            <span>Select date</span>
                           )}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
@@ -264,8 +289,17 @@ export default function HabitDialog({ open, onOpenChange, habit, mode }: HabitDi
                       <Calendar
                         mode="single"
                         selected={field.value}
-                        onSelect={field.onChange}
+                        onSelect={(date) => {
+                          // Always set the date when anything is clicked
+                          field.onChange(date);
+                        }}
                         initialFocus
+                        disabled={(date) => {
+                          // Only disable dates before today
+                          const todayDate = new Date();
+                          todayDate.setHours(0, 0, 0, 0);
+                          return date < todayDate;
+                        }}
                       />
                     </PopoverContent>
                   </Popover>
@@ -278,7 +312,25 @@ export default function HabitDialog({ open, onOpenChange, habit, mode }: HabitDi
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit">
+              <Button 
+                type="submit" 
+                disabled={
+                  // Explicitly check for empty required fields
+                  !form.getValues().name || 
+                  !form.getValues().startDate || 
+                  form.getValues().targetDays.length === 0 ||
+                  !form.formState.isValid || 
+                  form.formState.isSubmitting
+                }
+                variant={
+                  !form.getValues().name || 
+                  !form.getValues().startDate || 
+                  form.getValues().targetDays.length === 0 ||
+                  !form.formState.isValid 
+                    ? "outline" 
+                    : "default"
+                }
+              >
                 {mode === "create" ? "Create habit" : "Save changes"}
               </Button>
             </DialogFooter>

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -36,13 +36,13 @@ import { Button } from "@/components/ui/button";
 import Sidebar from "@/components/layout/Sidebar";
 import MobileNav from "@/components/layout/MobileNav";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { UserSettings } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/context/ThemeProvider";
-import { useToast } from "@/hooks/use-toast";
+import { useLocalStorage } from "@/hooks/use-local-storage";
 import { Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
-// Form validation schema
 const settingsFormSchema = z.object({
   darkMode: z.boolean(),
   timeRange: z.enum(["week", "month", "year"]),
@@ -56,37 +56,21 @@ const settingsFormSchema = z.object({
 type SettingsFormValues = z.infer<typeof settingsFormSchema>;
 
 export default function SettingsPage() {
-  const { user } = useAuth();
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
+  const [, setHeatmapRange] = useLocalStorage("heatmap-range", "month");
+  const [, setQuoteSetting] = useLocalStorage("show-quotes", true);
   
-  // Local state for heatmap range and quotes display
-  const setHeatmapRange = (range: string) => {
-    localStorage.setItem("heatmap-range", range);
-  };
-  
-  const setQuoteSetting = (show: boolean) => {
-    localStorage.setItem("show-quotes", show.toString());
-  };
-  
-  // Get user settings
-  const { data: settings, isLoading } = useQuery({
+  // Fetch user settings
+  const { data: settings, isLoading } = useQuery<UserSettings>({
     queryKey: ['/api/settings'],
-    queryFn: async () => {
-      const res = await fetch('/api/settings');
-      if (!res.ok) {
-        throw new Error('Failed to fetch settings');
-      }
-      return res.json();
-    },
-    enabled: !!user,
   });
   
   // Form setup
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsFormSchema),
     defaultValues: {
-      darkMode: theme === "dark",
+      darkMode: false,
       timeRange: "month",
       showQuotes: true,
       reminderTime: "18:00",
@@ -96,12 +80,19 @@ export default function SettingsPage() {
     },
   });
   
-  // Initialize settings from either database or localStorage
+  // Initialize settings from localStorage if not logged in
   useEffect(() => {
+    const storedTheme = localStorage.getItem("ui-theme") || "light";
+    const storedTimeRange = localStorage.getItem("heatmap-range") || "month";
+    const storedShowQuotes = localStorage.getItem("show-quotes") !== "false";
+    
+    // Apply existing settings to the UI immediately for better UX
+    setTheme(storedTheme === "dark" ? "dark" : "light");
+    
+    // Update form with either database settings or localStorage fallbacks
     if (settings) {
-      // Use settings from database if available, but don't update theme
       form.reset({
-        darkMode: theme === "dark", // Use current theme for form
+        darkMode: settings.darkMode,
         timeRange: settings.timeRange as "week" | "month" | "year",
         showQuotes: settings.showQuotes,
         reminderTime: settings.reminderTime,
@@ -111,11 +102,8 @@ export default function SettingsPage() {
       });
     } else {
       // If no settings from database yet, use localStorage values
-      const storedTimeRange = localStorage.getItem("heatmap-range") || "month";
-      const storedShowQuotes = localStorage.getItem("show-quotes") !== "false";
-      
       form.reset({
-        darkMode: theme === "dark", // Use current theme for form
+        darkMode: storedTheme === "dark",
         timeRange: storedTimeRange as "week" | "month" | "year",
         showQuotes: storedShowQuotes,
         reminderTime: localStorage.getItem("app-reminderTime") || "18:00",
@@ -124,7 +112,7 @@ export default function SettingsPage() {
         compactView: localStorage.getItem("app-compactView") === "true",
       });
     }
-  }, [settings, form, theme]);
+  }, [settings, form, setTheme]);
   
   // Save settings mutation
   const saveSettings = useMutation({
@@ -134,6 +122,9 @@ export default function SettingsPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+      
+      // Update theme in ThemeContext
+      setTheme(data.darkMode ? "dark" : "light");
       
       // Update localStorage values for client-side settings
       setHeatmapRange(data.timeRange);
@@ -172,7 +163,6 @@ export default function SettingsPage() {
   
   // Form submission
   function onSubmit(values: SettingsFormValues) {
-    // Save settings to database - theme is already applied when toggled
     saveSettings.mutate(values);
   }
   
@@ -199,21 +189,19 @@ export default function SettingsPage() {
                 </button>
                 <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Settings</h1>
               </div>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Manage your preferences and account settings.
-              </p>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Customize your experience with HabitVault.</p>
             </div>
             
-            {/* Settings Forms */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+            {/* Settings Form */}
+            <div className="max-w-2xl mx-auto px-4 sm:px-6 md:px-8">
               {isLoading ? (
-                <div className="flex justify-center my-8">
+                <div className="flex justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
               ) : (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Application Settings</CardTitle>
+                    <CardTitle>Preferences</CardTitle>
                     <CardDescription>Manage your personal preferences for the application.</CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -232,16 +220,8 @@ export default function SettingsPage() {
                               </div>
                               <FormControl>
                                 <Switch
-                                  checked={theme === "dark"} 
-                                  onCheckedChange={(checked) => {
-                                    // Just toggle the theme directly
-                                    const newTheme = checked ? "dark" : "light";
-                                    setTheme(newTheme);
-                                    localStorage.setItem("ui-theme", newTheme);
-                                    
-                                    // Also update form value 
-                                    field.onChange(checked);
-                                  }}
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
                                 />
                               </FormControl>
                             </FormItem>
@@ -255,18 +235,7 @@ export default function SettingsPage() {
                             <FormItem>
                               <FormLabel>Default Time Range</FormLabel>
                               <Select
-                                onValueChange={(value) => {
-                                  // Update form value
-                                  field.onChange(value);
-                                  
-                                  // Also update localStorage immediately
-                                  localStorage.setItem("heatmap-range", value);
-                                  
-                                  // Dispatch settings-updated event for immediate effect
-                                  window.dispatchEvent(new CustomEvent('settings-updated', { 
-                                    detail: { timeRange: value } 
-                                  }));
-                                }}
+                                onValueChange={field.onChange}
                                 defaultValue={field.value}
                                 value={field.value}
                               >
@@ -282,7 +251,7 @@ export default function SettingsPage() {
                                 </SelectContent>
                               </Select>
                               <FormDescription>
-                                This sets the default time range for analytics and heatmaps. When you visit your profile, the heatmap will automatically select the corresponding view (Weekly, Monthly, or Yearly).
+                                This sets the default time range for analytics and heatmaps.
                               </FormDescription>
                               <FormMessage />
                             </FormItem>
@@ -357,54 +326,50 @@ export default function SettingsPage() {
                                 Set the time to receive daily reminders.
                               </FormDescription>
                               <FormMessage />
+                              
+                              {/* Permission status and Test button */}
+                              {form.watch("reminderEnabled") && (
+                                <div className="mt-2 flex flex-col space-y-2">
+                                  <div className="text-sm text-muted-foreground">
+                                    Notification permission: 
+                                    <span className={
+                                      getNotificationPermission() === 'granted' 
+                                        ? 'text-green-600 dark:text-green-400 ml-1 font-medium' 
+                                        : 'text-yellow-600 dark:text-yellow-400 ml-1 font-medium'
+                                    }>
+                                      {getNotificationPermission() === 'granted' 
+                                        ? 'Granted' 
+                                        : 'Not granted - click test button to request'}
+                                    </span>
+                                  </div>
+                                  
+                                  <Button 
+                                    type="button" 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={async () => {
+                                      // If permission not granted, request it
+                                      if (getNotificationPermission() !== 'granted') {
+                                        const permission = await requestNotificationPermission();
+                                        if (!permission) {
+                                          return;
+                                        }
+                                      }
+                                      
+                                      // Send a test notification
+                                      sendNotification('HabitVault Test Notification', {
+                                        body: 'Your reminders are working! You will receive habit reminders at your set time.',
+                                        icon: '/favicon.ico',
+                                      });
+                                    }}
+                                  >
+                                    Test Notifications
+                                  </Button>
+                                </div>
+                              )}
                             </FormItem>
                           )}
                         />
-                        
-                        {/* Notification permission & test button */}
-                        {form.watch("reminderEnabled") && (
-                          <div className="mt-2 ml-4">
-                            <div className="text-sm text-muted-foreground">
-                              Notification permission: 
-                              <span className={
-                                getNotificationPermission() === 'granted' 
-                                  ? 'text-green-600 dark:text-green-400 ml-1 font-medium' 
-                                  : 'text-yellow-600 dark:text-yellow-400 ml-1 font-medium'
-                              }>
-                                {getNotificationPermission() === 'granted' 
-                                  ? 'Granted' 
-                                  : 'Not granted - click test button to request'}
-                              </span>
-                            </div>
-                            
-                            <Button 
-                              type="button" 
-                              variant="outline" 
-                              size="sm"
-                              className="mt-2"
-                              onClick={async () => {
-                                // If permission not granted, request it
-                                if (getNotificationPermission() !== 'granted') {
-                                  const permission = await requestNotificationPermission();
-                                  if (!permission) {
-                                    return;
-                                  }
-                                }
-                                
-                                // Send a test notification
-                                sendNotification('HabitVault Test Notification', {
-                                  body: 'Your reminders are working! You will receive habit reminders at your set time.',
-                                  icon: '/favicon.ico',
-                                });
-                              }}
-                            >
-                              Test Notifications
-                            </Button>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Click to verify browser notifications are working
-                            </p>
-                          </div>
-                        )}
                         
                         <FormField
                           control={form.control}
@@ -427,7 +392,7 @@ export default function SettingsPage() {
                           )}
                         />
                         
-                        {/* Email test button */}
+                        {/* Add test email button when email notifications are enabled */}
                         {form.watch("emailNotifications") && (
                           <div className="mt-2 ml-4">
                             <Button
@@ -502,8 +467,12 @@ export default function SettingsPage() {
                           )}
                         />
                         
-                        <CardFooter className="flex justify-end pt-5 px-0">
-                          <Button type="submit" disabled={saveSettings.isPending}>
+                        <CardFooter className="px-0">
+                          <Button 
+                            type="submit" 
+                            disabled={saveSettings.isPending}
+                            className="w-full md:w-auto"
+                          >
                             {saveSettings.isPending ? (
                               <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

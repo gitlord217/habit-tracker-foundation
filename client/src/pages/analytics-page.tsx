@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useHabits } from "@/hooks/use-habits";
 import { MainLayout } from "@/components/layout/main-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart, LineChart, PieChart } from "recharts";
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer, 
+  LineChart, 
+  PieChart
+} from "recharts";
 import { BarChartHorizontal, PieChart as PieChartIcon, LineChart as LineChartIcon, Calendar, Loader2 } from "lucide-react";
 import { calculateStreakColor } from "@/lib/utils";
 
@@ -14,9 +25,51 @@ interface AnalyticsPageProps {
   onNavigate: (page: string) => void;
 }
 
+interface TimeframeCompletionData {
+  date: string;
+  daily: number;
+  weekly: number;
+  monthly: number;
+}
+
 export default function AnalyticsPage({ onNavigate }: AnalyticsPageProps) {
   const { habits, completionRates, weeklyTrend, isLoading } = useHabits();
-  const [timeRange, setTimeRange] = useState("month");
+  const [timeRange, setTimeRange] = useState("week");
+  const [timeframeCompletionData, setTimeframeCompletionData] = useState<TimeframeCompletionData[]>([]);
+  const [isTimeframeDataLoading, setIsTimeframeDataLoading] = useState(false);
+  
+  // Fetch timeframe-specific completion data
+  useEffect(() => {
+    const fetchTimeframeCompletionData = async () => {
+      setIsTimeframeDataLoading(true);
+      try {
+        let period = '1week'; // Default to 1 week (7 days)
+        
+        // Map time range to period
+        if (timeRange === 'week') {
+          period = '1week';
+        } else if (timeRange === 'month') {
+          period = '1month';
+        }
+        
+        const response = await fetch(`/api/analytics/timeframe-completion?period=${period}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch timeframe completion data');
+        }
+        
+        const data = await response.json();
+        console.log('Timeframe completion data:', data);
+        setTimeframeCompletionData(data);
+      } catch (error) {
+        console.error('Error fetching timeframe completion data:', error);
+      } finally {
+        setIsTimeframeDataLoading(false);
+      }
+    };
+    
+    fetchTimeframeCompletionData();
+  }, [timeRange]);
   
   // Generate data for charts
   const generateCompletionRateData = () => {
@@ -45,7 +98,7 @@ export default function AnalyticsPage({ onNavigate }: AnalyticsPageProps) {
       <div className="grid gap-6">
         {/* Time range selector */}
         <div className="flex justify-end">
-          <Select defaultValue={timeRange} onValueChange={setTimeRange}>
+          <Select defaultValue="week" onValueChange={setTimeRange}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Select time range" />
             </SelectTrigger>
@@ -133,15 +186,105 @@ export default function AnalyticsPage({ onNavigate }: AnalyticsPageProps) {
                   <BarChartHorizontal className="h-4 w-4 mr-2" />
                   Completion Rates
                 </TabsTrigger>
+                <TabsTrigger value="timeframe">
+                  <BarChartHorizontal className="h-4 w-4 mr-2" />
+                  By Timeframe
+                </TabsTrigger>
                 <TabsTrigger value="streaks">
                   <LineChartIcon className="h-4 w-4 mr-2" />
                   Streaks
                 </TabsTrigger>
-                <TabsTrigger value="distribution">
-                  <PieChartIcon className="h-4 w-4 mr-2" />
-                  Distribution
-                </TabsTrigger>
               </TabsList>
+              
+              <TabsContent value="timeframe">
+                <div className="mb-4">
+                  <Select
+                    value={timeRange}
+                    onValueChange={setTimeRange}
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Select time range" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="week">Last 7 days</SelectItem>
+                      <SelectItem value="2weeks">Last 14 days</SelectItem>
+                      <SelectItem value="month">Last 30 days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {isTimeframeDataLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : timeframeCompletionData.length > 0 ? (
+                  <div className="w-full h-[350px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={timeframeCompletionData}
+                        margin={{ top: 20, right: 30, left: 0, bottom: 30 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date" 
+                          tickFormatter={(date) => {
+                            const d = new Date(date);
+                            return `${d.getMonth() + 1}/${d.getDate()}`;
+                          }}
+                        />
+                        <YAxis domain={[0, 100]} />
+                        <Tooltip 
+                          formatter={(value) => [`${value}%`, '']}
+                          labelFormatter={(date) => {
+                            const d = new Date(date);
+                            return new Intl.DateTimeFormat('en-US', {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric'
+                            }).format(d);
+                          }}
+                        />
+                        <Legend />
+                        <Bar 
+                          dataKey="daily" 
+                          name="Daily Tasks" 
+                          fill="#3b82f6" 
+                          radius={[4, 4, 0, 0]}
+                        />
+                        <Bar 
+                          dataKey="weekly" 
+                          name="Weekly Tasks" 
+                          fill="#8b5cf6" 
+                          radius={[4, 4, 0, 0]}
+                        />
+                        <Bar 
+                          dataKey="monthly" 
+                          name="Monthly Tasks" 
+                          fill="#f97316" 
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                    
+                    <div className="mt-4 text-sm text-muted-foreground text-center">
+                      <p>Shows completion percentages by habit timeframe type</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                      <BarChartHorizontal className="h-6 w-6 text-primary" />
+                    </div>
+                    <h3 className="font-semibold text-lg mb-2">No timeframe data available</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Complete habits of different timeframes (daily, weekly, monthly) to see this chart.
+                    </p>
+                    <Button onClick={() => onNavigate("habits")}>
+                      Go to Habits
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
               
               <TabsContent value="completion">
                 {isLoading ? (
@@ -208,31 +351,54 @@ export default function AnalyticsPage({ onNavigate }: AnalyticsPageProps) {
                   </div>
                 ) : habits && habits.length > 0 ? (
                   <div className="space-y-4">
-                    {habits.map(habit => (
-                      <div key={habit.id} className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <span className="font-medium">{habit.name}</span>
-                          </div>
-                          <div className="flex items-center space-x-4">
-                            <div className="text-sm">
-                              <span className="text-muted-foreground">Current: </span>
-                              <span className={calculateStreakColor(habit.currentStreak)}>{habit.currentStreak} days</span>
+                    {habits.map(habit => {
+                      // Determine the timeframe (daily, weekly, monthly)
+                      const habitTimeframe = habit.description?.includes('daily') ? 'Daily'
+                        : habit.description?.includes('weekly') ? 'Weekly'
+                        : habit.description?.includes('monthly') ? 'Monthly'
+                        : 'Regular';
+                        
+                      return (
+                        <Card key={habit.id} className="p-4">
+                          <div className="flex justify-between items-center mb-2">
+                            <div>
+                              <h3 className="font-semibold text-lg">{habit.name}</h3>
+                              <p className="text-sm text-muted-foreground">{habitTimeframe} habit</p>
                             </div>
-                            <div className="text-sm">
-                              <span className="text-muted-foreground">Longest: </span>
-                              <span className={calculateStreakColor(habit.longestStreak)}>{habit.longestStreak} days</span>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4 mt-2">
+                            <div className="flex flex-col items-center">
+                              <span className="text-sm text-muted-foreground mb-2">Current Streak</span>
+                              <div className={`w-24 h-24 rounded-lg flex items-center justify-center shadow-md
+                                ${habit.currentStreak > 30 ? 'bg-gradient-to-br from-emerald-400 to-green-600' :
+                                  habit.currentStreak > 15 ? 'bg-gradient-to-br from-blue-400 to-purple-600' :
+                                  habit.currentStreak > 7 ? 'bg-gradient-to-br from-yellow-300 to-orange-500' :
+                                  'bg-gradient-to-br from-gray-300 to-slate-400'}`}>
+                                <div className="text-center">
+                                  <span className="text-2xl font-bold text-white">{habit.currentStreak}</span>
+                                  <div className="text-xs text-white/90">days</div>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="flex flex-col items-center">
+                              <span className="text-sm text-muted-foreground mb-2">Highest Streak</span>
+                              <div className={`w-24 h-24 rounded-lg flex items-center justify-center shadow-md
+                                ${habit.longestStreak > 30 ? 'bg-gradient-to-br from-emerald-400 to-green-600' :
+                                  habit.longestStreak > 15 ? 'bg-gradient-to-br from-blue-400 to-purple-600' :
+                                  habit.longestStreak > 7 ? 'bg-gradient-to-br from-yellow-300 to-orange-500' :
+                                  'bg-gradient-to-br from-gray-300 to-slate-400'}`}>
+                                <div className="text-center">
+                                  <span className="text-2xl font-bold text-white">{habit.longestStreak}</span>
+                                  <div className="text-xs text-white/90">days</div>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <Progress 
-                          value={habit.currentStreak > 0 
-                            ? (habit.currentStreak / Math.max(habit.longestStreak, 1)) * 100
-                            : 0
-                          } 
-                        />
-                      </div>
-                    ))}
+                        </Card>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-8">
@@ -250,99 +416,7 @@ export default function AnalyticsPage({ onNavigate }: AnalyticsPageProps) {
                 )}
               </TabsContent>
               
-              <TabsContent value="distribution">
-                {isLoading ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  </div>
-                ) : habits && habits.length > 0 ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Card>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm">Habit Distribution by Day</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-4">
-                            {Array.from({ length: 7 }).map((_, dayIndex) => {
-                              const dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dayIndex];
-                              const habitsOnDay = habits.filter(h => (h.targetDays as number[]).includes(dayIndex));
-                              const percentage = habitsOnDay.length > 0 ? Math.round((habitsOnDay.length / habits.length) * 100) : 0;
-                              
-                              return (
-                                <div key={dayIndex} className="space-y-1">
-                                  <div className="flex justify-between text-sm">
-                                    <span>{dayName}</span>
-                                    <span>{habitsOnDay.length} habits</span>
-                                  </div>
-                                  <Progress value={percentage} />
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </CardContent>
-                      </Card>
-                      
-                      <Card>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm">Completion Distribution</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          {completionRates && completionRates.length > 0 ? (
-                            <div className="space-y-4">
-                              {(() => {
-                                const high = completionRates.filter(c => c.completionRate >= 75).length;
-                                const medium = completionRates.filter(c => c.completionRate >= 50 && c.completionRate < 75).length;
-                                const low = completionRates.filter(c => c.completionRate < 50).length;
-                                
-                                const categories = [
-                                  { name: "High (75-100%)", value: high, color: "bg-green-500" },
-                                  { name: "Medium (50-74%)", value: medium, color: "bg-yellow-500" },
-                                  { name: "Low (0-49%)", value: low, color: "bg-red-500" },
-                                ];
-                                
-                                return categories.map(category => (
-                                  <div key={category.name} className="space-y-1">
-                                    <div className="flex justify-between text-sm">
-                                      <span>{category.name}</span>
-                                      <span>{category.value} habits</span>
-                                    </div>
-                                    <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                                      <div
-                                        className={`h-full ${category.color}`}
-                                        style={{
-                                          width: `${Math.round((category.value / completionRates.length) * 100)}%`,
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
-                                ));
-                              })()}
-                            </div>
-                          ) : (
-                            <div className="text-center py-8 text-sm text-muted-foreground">
-                              No completion data available
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                      <PieChartIcon className="h-6 w-6 text-primary" />
-                    </div>
-                    <h3 className="font-semibold text-lg mb-2">No distribution data</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Add some habits to see distribution analytics.
-                    </p>
-                    <Button onClick={() => onNavigate("habits")}>
-                      Go to Habits
-                    </Button>
-                  </div>
-                )}
-              </TabsContent>
+
             </Tabs>
           </CardContent>
         </Card>

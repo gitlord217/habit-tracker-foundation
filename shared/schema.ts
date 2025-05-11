@@ -62,6 +62,10 @@ export const userSettings = pgTable("user_settings", {
   darkMode: boolean("dark_mode").notNull().default(false),
   timeRange: text("time_range").notNull().default("month"), // week, month, year
   showQuotes: boolean("show_quotes").notNull().default(true),
+  reminderTime: text("reminder_time").notNull().default("18:00"),
+  reminderEnabled: boolean("reminder_enabled").notNull().default(false),
+  emailNotifications: boolean("email_notifications").notNull().default(false),
+  compactView: boolean("compact_view").notNull().default(false),
 });
 
 export const userSettingsRelations = relations(userSettings, ({ one }) => ({

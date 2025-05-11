@@ -49,7 +49,13 @@ export const HabitsProvider = ({ children }: { children: ReactNode }) => {
       return res.json();
     },
     onSuccess: () => {
+      // Invalidate both habits and today's completions queries
       queryClient.invalidateQueries({ queryKey: ['/api/habits'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/completions/today'] });
+      
+      // Log for debugging
+      console.log('Invalidated habit and today completion queries after habit creation');
+      
       toast({
         title: 'Habit created',
         description: 'Your new habit was created successfully.',

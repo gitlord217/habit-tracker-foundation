@@ -55,19 +55,23 @@ export default function MobileNav() {
               {navItems.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <Link key={item.path} href={item.path}>
-                    <a 
-                      className={`flex items-center rounded-md px-3 py-2 text-sm font-medium ${
-                        location === item.path 
-                          ? "bg-primary text-primary-foreground" 
-                          : "hover:bg-muted"
-                      }`}
-                      onClick={() => setOpen(false)}
-                    >
-                      <Icon className="mr-2 h-4 w-4" />
-                      {item.label}
-                    </a>
-                  </Link>
+                  <a 
+                    key={item.path}
+                    className={`flex items-center rounded-md px-3 py-2 text-sm font-medium cursor-pointer ${
+                      location === item.path 
+                        ? "bg-primary text-primary-foreground" 
+                        : "hover:bg-muted"
+                    }`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setOpen(false);
+                      const pageName = item.path === "/" ? "dashboard" : item.path.substring(1);
+                      window.dispatchEvent(new CustomEvent('navigate', { detail: pageName }));
+                    }}
+                  >
+                    <Icon className="mr-2 h-4 w-4" />
+                    {item.label}
+                  </a>
                 );
               })}
             </div>
@@ -84,28 +88,34 @@ export default function MobileNav() {
             const isProfileTab = item.path === "/profile";
             
             return (
-              <Link key={item.path} href={item.path}>
-                <a className={`flex flex-col items-center ${
+              <a 
+                key={item.path}
+                className={`flex flex-col items-center cursor-pointer ${
                   location === item.path ? "text-primary" : "text-gray-500 dark:text-gray-400"
-                }`}>
-                  {isProfileTab && user ? (
-                    <div className={`relative rounded-full ${location === item.path ? "ring-2 ring-primary" : ""}`}>
-                      <Avatar className="h-6 w-6">
-                        {user.profileImage ? (
-                          <AvatarImage src={user.profileImage} alt={user.username} />
-                        ) : (
-                          <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                            {user.username.substring(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        )}
-                      </Avatar>
-                    </div>
-                  ) : (
-                    <Icon className="h-6 w-6" />
-                  )}
-                  <span className="text-xs mt-1">{item.label}</span>
-                </a>
-              </Link>
+                }`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  const pageName = item.path === "/" ? "dashboard" : item.path.substring(1);
+                  window.dispatchEvent(new CustomEvent('navigate', { detail: pageName }));
+                }}
+              >
+                {isProfileTab && user ? (
+                  <div className={`relative rounded-full ${location === item.path ? "ring-2 ring-primary" : ""}`}>
+                    <Avatar className="h-6 w-6">
+                      {user.profileImage ? (
+                        <AvatarImage src={user.profileImage} alt={user.username} />
+                      ) : (
+                        <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                          {user.username.substring(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                  </div>
+                ) : (
+                  <Icon className="h-6 w-6" />
+                )}
+                <span className="text-xs mt-1">{item.label}</span>
+              </a>
             );
           })}
         </div>

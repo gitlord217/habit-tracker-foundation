@@ -34,18 +34,22 @@ export default function Sidebar() {
           
           <nav className="mt-5 flex-1 px-2 space-y-1">
             {navItems.map((item) => (
-              <Link key={item.path} href={item.path}>
-                <a
-                  className={`flex items-center px-4 py-3 text-sm font-medium rounded-md ${
-                    location === item.path
-                      ? "text-primary-foreground bg-primary"
-                      : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  {item.icon}
-                  <span className="ml-3">{item.label}</span>
-                </a>
-              </Link>
+              <a
+                key={item.path}
+                className={`flex items-center px-4 py-3 text-sm font-medium rounded-md cursor-pointer ${
+                  location === item.path
+                    ? "text-primary-foreground bg-primary"
+                    : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                }`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  const pageName = item.path === "/" ? "dashboard" : item.path.substring(1);
+                  window.dispatchEvent(new CustomEvent('navigate', { detail: pageName }));
+                }}
+              >
+                {item.icon}
+                <span className="ml-3">{item.label}</span>
+              </a>
             ))}
           </nav>
         </div>
@@ -53,22 +57,26 @@ export default function Sidebar() {
         <div className="flex-shrink-0 flex border-t border-gray-200 dark:border-gray-700 p-4">
           <div className="flex-shrink-0 w-full group block">
             <div className="flex items-center">
-              <Link href="/profile">
-                <a className="relative group">
-                  <Avatar className="h-12 w-12 border-2 border-transparent group-hover:border-primary transition-all">
-                    {user?.profileImage ? (
-                      <AvatarImage src={user.profileImage} alt={user.username} />
-                    ) : (
-                      <AvatarFallback className="bg-primary/10 text-primary text-xl">
-                        {user?.username.substring(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
-                  <div className="absolute inset-0 rounded-full bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <User className="h-5 w-5 text-white" />
-                  </div>
-                </a>
-              </Link>
+              <a 
+                className="relative group cursor-pointer"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.dispatchEvent(new CustomEvent('navigate', { detail: 'profile' }));
+                }}
+              >
+                <Avatar className="h-12 w-12 border-2 border-transparent group-hover:border-primary transition-all">
+                  {user?.profileImage ? (
+                    <AvatarImage src={user.profileImage} alt={user.username} />
+                  ) : (
+                    <AvatarFallback className="bg-primary/10 text-primary text-xl">
+                      {user?.username.substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+                <div className="absolute inset-0 rounded-full bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <User className="h-5 w-5 text-white" />
+                </div>
+              </a>
               <div className="ml-3">
                 <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{user?.username}</p>
                 <Button
